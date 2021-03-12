@@ -10,9 +10,9 @@
     "url": "https://github.com/sinnlosername/tmpchannels.git"
   },
   "readme": "README.md",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/index.js"
   },
   "dependencies": {
     "async-mutex": "^0.3.1",

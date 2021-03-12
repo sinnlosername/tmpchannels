@@ -59,8 +59,10 @@ class CategoryHandler {
     if (!this.categoryConfig["autoText"]) return;
 
     await Promise.all([
-      this.updateTextChannel(newVoiceChannel, member, true),
+      this.updateTextChannel(newVoiceChannel, member, true)
+        .catch(e => this.logger.err(`Failed to update old text channel for ${oldVoiceChannel.name}`, e)),
       this.updateTextChannel(oldVoiceChannel, member, false)
+        .catch(e => this.logger.err(`Failed to update new text channel for ${newVoiceChannel.name}`, e))
     ])
   }
 
@@ -145,7 +147,9 @@ class CategoryHandler {
       const voiceChannel = voiceChannels.pop();
 
       deletionPromises.push(voiceChannel.delete()
-        .then(() => this.logger.ok(`Deleted voice channel ${voiceChannel.name}`)))
+        .then(() => this.logger.ok(`Deleted voice channel ${voiceChannel.name}`))
+        .catch(e => this.logger.err("Failed to delete channel ${voiceChannel.name}", e))
+      )
 
       emptyAtTail--;
     }

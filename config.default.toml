@@ -1,0 +1,17 @@
+[general]
+token = ""
+
+[categories]
+    [categories.0]
+    categoryId = ""
+
+    autoText = false
+    autoTextPrefix = "tmp"
+    autoTextPosition = "bottom"
+
+    autoVoice = true
+    autoVoicePrefix = "Voice"
+    autoVoiceSlots = 99
+    autoVoiceChannelLimit = 10
+    autoVoiceBitrate = 96000
+    autoVoicePermissions = []

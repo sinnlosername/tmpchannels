@@ -1,0 +1,25 @@
+{
+  "name": "tmpchannels",
+  "version": "1.0.0",
+  "description": "A discord bot which allows you to automatically create temporary text and voice channels",
+  "author": "Florian <florian.ws>",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sinnlosername/tmpchannels.git"
+  },
+  "readme": "README.md",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "async-mutex": "^0.3.1",
+    "auto-bind": "^4.0.0",
+    "chalk": "^3.0.0",
+    "dayjs": "^1.10.4",
+    "discord.js": "^12.5.1",
+    "toml": "^3.0.0"
+  }
+}

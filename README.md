@@ -1,4 +1,4 @@
-# /tmp/channels bot
+# /tmp/channels
 
 /tmp/channels is a discord bot which allows you to automatically create temporary text and voice channels, when required
 
@@ -22,7 +22,7 @@ Repeat last two steps whenever the configuration is changed.
 
 Key | Value
 ------------ | -------------
-general.token | A valid discord bot token - you can retrieve it from the [discord developer console](https://discord.com/developers/applications)
+general.token | A valid discord bot token. You can retrieve it from the [discord developer console](https://discord.com/developers/applications)
 category.categoryId | The id of the category you want to configure the bot for. See [Retrieving Ids](#retrieving-ids) for further information
 category.autoText | Whether or not text channels should be generated in this category
 category.autoTextPrefix | A prefix for the generated text channels

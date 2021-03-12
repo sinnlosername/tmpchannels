@@ -83,6 +83,8 @@ class CategoryHandler {
   }
 
   async updateTextChannelPermissions(member, voiceChannel, textChannel, canSee) {
+    if (member.hasPermission("ADMINISTRATOR")) return; // Administrators can always see the channel
+
     const hasAccess = member.permissionsIn(textChannel).has("VIEW_CHANNEL");
     if (canSee === hasAccess) return;
 

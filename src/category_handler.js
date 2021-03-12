@@ -95,7 +95,7 @@ class CategoryHandler {
       const channelProps = {
         parent: this.category,
         permissionOverwrites: [
-          {id: this.category.guild.id, deny: ['VIEW_CHANNEL']},
+          {id: this.category.guild.roles.everyone.id, deny: ['VIEW_CHANNEL']},
           {id: this.client.user.id, allow: ['VIEW_CHANNEL']}
         ],
       };

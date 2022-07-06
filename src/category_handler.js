@@ -158,8 +158,8 @@ class CategoryHandler {
     await Promise.all(deletionPromises)
   }
 
-  async createVoiceChannel(category, id) {
-    const newChannelName = `${this.categoryConfig["autoVoicePrefix"]} ${id}`;
+  async createVoiceChannel(category, number) {
+    const newChannelName = this.getVoiceChannelName(number);
     const channelProps = {
       type: "voice",
       parent: category,
@@ -199,11 +199,16 @@ class CategoryHandler {
 
   getAutoVoiceChannels(categoryId) {
     const result = [];
-    let i = 1, channel;
-    while ((channel = this.getChannel(categoryId, "voice", `${this.categoryConfig["autoVoicePrefix"]} ${i++}`)) != null) {
+    let num = 0, channel;
+    while ((channel = this.getChannel(categoryId, "voice", this.getVoiceChannelName(++num))) != null) {
       result.push(channel);
     }
     return result;
+  }
+
+  getVoiceChannelName(number) {
+    const prefix = this.categoryConfig["autoVoicePrefix"]
+    return number === 1 ? prefix : `${prefix} ${number}`;
   }
 
   getChannel(categoryId, type, name) {

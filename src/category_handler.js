@@ -1,4 +1,6 @@
+const {clearArray} = require("./util")
 const {Mutex, withTimeout} = require("async-mutex")
+const {Permissions} = require("discord.js");
 
 class CategoryHandler {
   constructor(baseLogger, client, handlerId, categoryConfig) {
@@ -6,8 +8,6 @@ class CategoryHandler {
     this.client = client;
     this.categoryConfig = categoryConfig;
     this.channelMutexes = [];
-
-    this.init().catch(this.logger.err);
   }
 
   async init() {
@@ -39,16 +39,18 @@ class CategoryHandler {
   }
 
   async handleVoiceStateUpdate(oldState, newState) {
-    if (oldState.channelID === newState.channelID) return; // Ignore Mute / Unmute
+    if (oldState.channelId === newState.channelId) return; // Ignore Mute / Unmute
 
-    await this.getChannelMutex(newState.channelID).runExclusive(async () => {
+    await this.getChannelMutex(newState.channelId).runExclusive(async () => {
       try {
-        await this.updateTextChannels(
-          oldState.channelID == null ? null : await this.client.channels.fetch(oldState.channelID),
-          newState.channelID == null ? null : await this.client.channels.fetch(newState.channelID),
-          await newState.guild.members.fetch(newState.id)
-        );
-        await this.updateVoiceChannels();
+        await Promise.all([
+          this.updateTextChannels(
+            oldState.channelId == null ? null : await this.client.channels.fetch(oldState.channelId),
+            newState.channelId == null ? null : await this.client.channels.fetch(newState.channelId),
+            await newState.guild.members.fetch(newState.id)
+          ),
+          this.updateVoiceChannels()
+        ])
       } catch (e) {
         this.logger.err(e);
       }
@@ -60,15 +62,15 @@ class CategoryHandler {
 
     await Promise.all([
       this.updateTextChannel(newVoiceChannel, member, true)
-        .catch(e => this.logger.err(`Failed to update old text channel for ${oldVoiceChannel.name}`, e)),
+        .catch(e => this.logger.err(`Failed to update old text channel for ${oldVoiceChannel?.name}`, e)),
       this.updateTextChannel(oldVoiceChannel, member, false)
-        .catch(e => this.logger.err(`Failed to update new text channel for ${newVoiceChannel.name}`, e))
+        .catch(e => this.logger.err(`Failed to update new text channel for ${newVoiceChannel?.name}`, e))
     ])
   }
 
   async updateTextChannel(voiceChannel, member, canSee) {
     if (voiceChannel == null) return;
-    if (voiceChannel.parentID !== this.category.id) return;
+    if (voiceChannel.parentId !== this.category.id) return;
 
     const textChannel = await this.updateTextChannelExistence(voiceChannel);
     if (textChannel == null) return;
@@ -82,22 +84,14 @@ class CategoryHandler {
     }
   }
 
-  async updateTextChannelPermissions(member, voiceChannel, textChannel, canSee) {
-    if (member.hasPermission("ADMINISTRATOR")) return; // Administrators can always see the channel
-
-    const hasAccess = member.permissionsIn(textChannel).has("VIEW_CHANNEL");
-    if (canSee === hasAccess) return;
-
-    await textChannel.updateOverwrite(member.id, {"VIEW_CHANNEL": canSee});
-  }
-
   async updateTextChannelExistence(voiceChannel) {
     const textChannelName = this.getTextChannelName(voiceChannel);
-    let textChannel = this.getChannel(this.category.id, "text", textChannelName);
+    const textChannels = this.getChannels(this.category.id, "GUILD_TEXT", textChannelName);
 
-    if (textChannel == null && voiceChannel.members.size > 0) {
+    if (textChannels.length === 0 && voiceChannel.members.size > 0) {
       const channelProps = {
         parent: this.category,
+        type: "GUILD_TEXT",
         permissionOverwrites: [
           {id: this.category.guild.roles.everyone.id, deny: ['VIEW_CHANNEL']},
           {id: this.client.user.id, allow: ['VIEW_CHANNEL']}
@@ -108,17 +102,32 @@ class CategoryHandler {
         channelProps.position = 0;
       }
 
-      textChannel = await this.category.guild.channels.create(textChannelName, channelProps);
+      const newChannel = await this.category.guild.channels.create(textChannelName, channelProps)
 
-      this.logger.ok(`Created text channel ${textChannel.name}`);
-    } else if (textChannel != null && voiceChannel.members.size === 0) {
-      await textChannel.delete();
-      this.logger.ok(`Deleted text channel ${textChannel.name}`);
+      textChannels.push(newChannel)
 
-      textChannel = null;
+      this.logger.ok(`Created text channel ${newChannel.name}`);
+    } else if (textChannels.length > 0 && voiceChannel.members.size === 0) {
+      for (let textChannel of textChannels) {
+        await textChannel.delete();
+        this.logger.ok(`Deleted text channel ${textChannel.name}`);
+      }
+
+      clearArray(textChannels)
     }
 
-    return textChannel;
+    return textChannels[0];
+  }
+
+  async updateTextChannelPermissions(member, voiceChannel, textChannel, canSee) {
+    const memberPermissions = member.permissionsIn(textChannel);
+    if (memberPermissions.has(Permissions.FLAGS.ADMINISTRATOR)) return; // Administrators can always see the channel
+
+    const hasAccess = memberPermissions.has(Permissions.FLAGS.VIEW_CHANNEL);
+    this.logger.ok("checking permissions for " + member.displayName + " shallSee=" + canSee + " hasAccess=" + hasAccess)
+    if (canSee === hasAccess) return;
+
+    await textChannel.permissionOverwrites.edit(member, {"VIEW_CHANNEL": canSee})
   }
 
   getTextChannelName(voiceChannel) {
@@ -133,7 +142,7 @@ class CategoryHandler {
 
     if (initial && voiceChannels.every(channel => channel.members.size < 1)) {
       await Promise.all(voiceChannels.map(channel => channel.delete()))
-      voiceChannels.length = 0 // clear the array
+      clearArray(voiceChannels)
       this.logger.ok(`Reset voice channels in category ${this.category.name}`)
     }
 
@@ -144,16 +153,15 @@ class CategoryHandler {
       return;
     }
 
+    // Delete empty channels at tail. Not necessary if a new channel was just created
     const deletionPromises = [];
-    while (emptyAtTail > 1) {
+    while (emptyAtTail-- > 1) {
       const voiceChannel = voiceChannels.pop();
 
       deletionPromises.push(voiceChannel.delete()
         .then(() => this.logger.ok(`Deleted voice channel ${voiceChannel.name}`))
         .catch(e => this.logger.err("Failed to delete channel ${voiceChannel.name}", e))
       )
-
-      emptyAtTail--;
     }
     await Promise.all(deletionPromises)
   }
@@ -161,7 +169,7 @@ class CategoryHandler {
   async createVoiceChannel(category, number) {
     const newChannelName = this.getVoiceChannelName(number);
     const channelProps = {
-      type: "voice",
+      type: "GUILD_VOICE",
       parent: category,
       userLimit: this.categoryConfig["autoVoiceSlots"],
       bitrate: this.categoryConfig["autoVoiceBitrate"]
@@ -193,16 +201,21 @@ class CategoryHandler {
 
   getAllVoiceChannels(categoryId) {
     return this.client.channels.cache
-      .filter(channel => channel.type === "voice")
-      .filter(channel => channel.parentID === categoryId);
+      .filter(channel => channel.type === "GUILD_VOICE")
+      .filter(channel => channel.parentId === categoryId);
   }
 
   getAutoVoiceChannels(categoryId) {
     const result = [];
-    let num = 0, channel;
-    while ((channel = this.getChannel(categoryId, "voice", this.getVoiceChannelName(++num))) != null) {
-      result.push(channel);
+    let num = 0;
+
+    while (true) {
+      const channels = this.getChannels(categoryId, "GUILD_VOICE", this.getVoiceChannelName(++num))
+      if (channels.length === 0) break
+
+      result.push(...channels)
     }
+
     return result;
   }
 
@@ -211,11 +224,14 @@ class CategoryHandler {
     return number === 1 ? prefix : `${prefix} ${number}`;
   }
 
-  getChannel(categoryId, type, name) {
-    return this.client.channels.cache
-      .filter(channel => channel.type === type)
-      .filter(channel => channel.parentID === categoryId)
-      .find(channel => channel.name === name);
+  getChannels(categoryId, type, name) {
+    return Array.from(
+      this.client.channels.cache
+        .filter(channel => channel.type === type)
+        .filter(channel => channel.parentId === categoryId)
+        .filter(channel => channel.name === name)
+        .values()
+    )
   }
 }
 

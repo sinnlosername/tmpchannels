@@ -4,14 +4,24 @@ const fs = require("fs");
 const config = toml.parse(fs.readFileSync("config.toml", "utf8"));
 
 const Discord = require('discord.js');
-const client = new Discord.Client();
+const {Intents} = require("discord.js");
+const ChannelHandler = require("./category_handler");
+const client = new Discord.Client({
+  intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_VOICE_STATES]
+});
 
 client.once("ready", async () => {
   const ChannelHandler = require("./category_handler");
   const keys = Object.keys(config["categories"]);
 
   keys.forEach(key => {
-    new ChannelHandler(logger, client, key, config["categories"][key]);
+    const categoryConfig = config["categories"][key]
+    const channelHandler = new ChannelHandler(logger, client, key, categoryConfig);
+    try {
+      channelHandler.init()
+    } catch (error) {
+      this.logger.error("Error while initializing " + categoryConfig["categoryId"])
+    }
   });
 
   await client.user.setActivity('channel events', { type: 'LISTENING' });
